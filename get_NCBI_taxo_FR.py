@@ -83,6 +83,19 @@ def getTheTrees():
 			taxid = line.split("|")[0].replace("\t","")
 			tid_val = line.split("|")[1].replace("\t","")
 			tid_type = line.split("|")[3].replace("\t","")
+			##PEUT ETRE RAJOUTER DES PETTS FILTRES COMME CA ??? A VOIR.
+		    # n.common_name = n.common_name[0] if len(n.common_name)>0 else ""
+		    # n.common_name = n.common_name.replace("'","''");
+		    # n.common_name_FR = n.common_name_FR[0] if len(n.common_name_FR)>0 else ""
+		    # n.common_name_FR = n.common_name_FR.replace("'","''");
+		    # n.rank = n.rank.replace("'","''");
+		    # n.rank_FR = n.rank_FR.replace("'","''");
+
+		    # n.sci_name = n.sci_name.replace("'","''")
+		    # #add parenthesis to the common name
+		    # if n.common_name!='':
+		    #     n.common_name = "(" + n.common_name + ")"
+
 			if (taxid not in ATTR):
 				ATTR[taxid] = Taxid()
 			if (tid_type=="scientific name"):
