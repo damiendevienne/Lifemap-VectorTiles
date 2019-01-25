@@ -172,6 +172,8 @@ T = getTheTrees() #Get the Whole tree, for real.
 if (len(args.taxid)==1):
 	print("Writing the whole NCBI taxonomy tree to All.tre...")
 	tout=T[args.taxid]
+	if (args.simplify=='True'):
+		tout = simplify(tout)
 	tout.write(outfile = "All.tre", features = ["name", "taxid", "sci_name","common_name","rank", "authority","synonym","common_name_FR", "rank_FR"], format_root_node=True)
 else:
 	print("Writing trees...")
@@ -179,5 +181,7 @@ else:
 		out= i + ".tre"	
 		print("  " + out)
 		t=T[i]
+		if (args.simplify=='True'):
+			t = simplify(t)
 		t.write(outfile = out, features = ["name", "taxid", "sci_name","common_name","rank", "authority","synonym","common_name_FR", "rank_FR"], format_root_node=True)
 
