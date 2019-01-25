@@ -22,7 +22,7 @@ def is_valid_file(parser, arg):
     else:
         return arg  # return an open file handle
 
-parser = ArgumentParser(description='Convert a tree in NHX format (newick extended format) into a collection of json files necessary for Lifemap visualization. These files will serve as input for "tippecanoe"')
+parser = ArgumentParser(description='Converts a tree in NHX format (newick extended format) into a collection of json files necessary for Lifemap visualization. These files may serve as input for "Tippecanoe"')
 parser.add_argument("-i", dest="filename", required=True, help="input tree file in NHX format", metavar="TreeFile", type=lambda x: is_valid_file(parser, x))
 parser.add_argument('--lang', nargs='?', const='EN', default='EN', help='language chosen. FR for french, EN (default) for english', choices=['EN','FR'])
 
@@ -34,6 +34,13 @@ t = Tree(args.filename) #read the input tree.
 nbsp = len(t) ## get nb of tips 
 sys.stdout.write("Loading tree... DONE [the tree has %d tips] \n" % nbsp)
 sys.stdout.flush()
+##
+sys.stdout.write("Storing tree nodes for faster lookup... \r")
+sys.stdout.flush()
+node2leaves = t.get_cached_content()
+sys.stdout.write("Storing tree nodes for faster lookup... DONE\n")
+sys.stdout.flush()
+
 
 t.x = 6.0;
 t.y = 9.660254-10.0;
@@ -196,22 +203,24 @@ for n in t.traverse():
     n.dist=1.0
     tot = 0.0
     child = n.children
-    ##NEW: we deal with singletons -->| 
-    if ((len(child)==1)&(len(n)>1)):
-        special=1
-    if ((len(child)==1)&(len(n)==1)):
-        special=2
-    ## |<-- NEW
-    for i in child:
-        tot = tot + np.sqrt(len(i));
-    nbdesc = len(n);
+    nbdesc = len(node2leaves[n]);
     n.nbdesc = nbdesc;
     nbsons = len(child);
+    ##NEW: we deal with singletons -->| 
+    if ((nbsons==1)&(nbdesc>1)):
+        special=1
+    if ((nbsons==1)&(nbdesc==1)):
+        special=2
+    ## |<-- NEW
     angles = [];
     ray = n.ray;
     for i in child:
+        tot = tot + np.sqrt(len(node2leaves[i]));
+    cpt = 0
+    for i in child:
+        length_i = len(node2leaves[i]);
+        i.ang = 180*(np.sqrt(length_i)/tot)/2; #using sqrt we decrease difference between large and small groups. The other option:
         #i.ang = 180*(len(i)/float(nbdesc))/2;
-        i.ang = 180*(np.sqrt(len(i))/tot)/2; #using sqrt we decrease difference between large and small groups
         angles.append(i.ang);
         if (special==1):
             i.ray = ray-(ray*20)/100
@@ -221,13 +230,12 @@ for n in t.traverse():
             else:
                 i.ray = (ray*np.sin(rad(i.ang))/np.cos(rad(i.ang)))/(1+(np.sin(rad(i.ang))/np.cos(rad(i.ang))));
         i.dist = ray - i.ray;
-    ang = np.repeat(angles, 2);
-    ang = np.cumsum(ang);
-    ang = ang[0::2];
-    ang = [i-(90-n.alpha) for i in ang];
-    cpt = 0
-    for i in child:
-        i.alpha = ang[cpt];
+        if (cpt==0):
+            ang = i.ang
+        else:
+            ang = np.sum(np.repeat(angles[:-1],2))+i.ang
+        ang = ang-(90-n.alpha)
+        i.alpha = ang;
         i.x = n.x + i.dist*np.cos(rad(i.alpha));
         i.y = n.y + i.dist*np.sin(rad(i.alpha));
         i.zoomview = np.ceil(np.log2(30/i.ray))
@@ -235,25 +243,22 @@ for n in t.traverse():
             i.zoomview = 0
         if maxZoomView<i.zoomview:
             maxZoomView = i.zoomview
-        cpt = cpt+1;
-    #we write node info
-    writeGeojsonNode(n)
-    writeGeojsonPolyg(n)
-    if n.is_root()==False:
-        writeGeojsonLines(n)
+        cpt += 1;
+    # #we write node info
+    # writeGeojsonNode(n)
+    # writeGeojsonPolyg(n)
+    # if n.is_root()==False:
+    #     writeGeojsonLines(n)
     if n.is_leaf():
-        ##progress...
         currsp+=1
         sys.stdout.write("Tree traversal... " + str(np.ceil(currsp/nbsp*100)) + "% \r")
         sys.stdout.flush()
-        ##
+        #
 
 sys.stdout.write("Tree traversal... " + "DONE          " + "\n")
 sys.stdout.flush()
 
 sys.stdout.write("Closing output files... \r")
-sys.stdout.flush()
-sys.stdout.write("Closing output files... DONE\n")
 sys.stdout.flush()
 
 NodeTipJS.close()
@@ -266,6 +271,9 @@ TerminateFiles("Branches.json")
 TerminateFiles("CladesNames.json")
 TerminateFiles("RankNames.json")
 TerminateFiles("Polygons.json")
+
+sys.stdout.write("Closing output files... DONE\n")
+sys.stdout.flush()
 
 print("INFO: Lifemap requires at least %d zoom levels to visualize the whole tree.\n" % maxZoomView)
 
