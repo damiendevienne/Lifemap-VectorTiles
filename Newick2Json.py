@@ -5,11 +5,16 @@
 # It takes an input a tree in NHX format. 
 # Attributes associated to the nodes and tips of the tree become the attributes of the json file. 
 #########
+
 import sys
 import os
 from argparse import ArgumentParser, FileType ##for options handling
 import numpy as np
 from ete3 import Tree
+import time
+
+
+
 
 def is_valid_file(parser, arg):
     if not os.path.exists(arg):
@@ -23,19 +28,19 @@ parser.add_argument('--lang', nargs='?', const='EN', default='EN', help='languag
 
 args = parser.parse_args()
 
-print("Loading tree...")
+sys.stdout.write("\nLoading tree... \r")
+sys.stdout.flush()
 t = Tree(args.filename) #read the input tree.
-print("Done")
+nbsp = len(t) ## get nb of tips 
+sys.stdout.write("Loading tree... DONE [the tree has %d tips] \n" % nbsp)
+sys.stdout.flush()
+
 t.x = 6.0;
 t.y = 9.660254-10.0;
 t.alpha = 30.0;
-t.ray = 10.0;
+t.ray = 30.0;
 t.zoomview = np.ceil(np.log2(30/t.ray));
-
-#specis and node ids
-nbsp = len(t)
-print("The tree has " + str(nbsp) + " tips")
-maxZoomView=0 ##NO IDEA WHAT THIS IS... 
+maxZoomView=0 ##
 
 ##FUNCTIONS
 #getattr(t,n)
@@ -72,6 +77,7 @@ def cleanit(str): #this function cleans the strings that need to be.
 def writeGeojsonNode(node):
     NodeTipJS.write("    {\n");
     NodeTipJS.write("      \"type\": \"Feature\",\n")
+    NodeTipJS.write("      \"tippecanoe\": { \"maxzoom\" : %d, \"minzoom\" : %d },\n" % (32 if node.zoomview>26 else node.zoomview+5, 1 if node.zoomview < 3 else node.zoomview-2))
     NodeTipJS.write("      \"properties\": {\n")
     for f in node.features:
         NodeTipJS.write("        \"%s\":\"%s\",\n" % (f, cleanit(str(getattr(node, f)))))
@@ -91,6 +97,7 @@ def writeGeojsonNode(node):
 def writeGeojsonLines(node):
     BranchJS.write("    {\n");
     BranchJS.write("      \"type\": \"Feature\",\n")
+##    BranchJS.write("      \"tippecanoe\": { \"maxzoom\" : %d, \"minzoom\" : %d },\n" % (32 if node.zoomview>26 else node.zoomview+5, 1 if node.zoomview < 3 else node.zoomview-2))
     BranchJS.write("      \"properties\": {\n")
     BranchJS.write("        \"zoom\":%d\n" % (node.zoomview))
     BranchJS.write("      },\n") #close properties
@@ -105,6 +112,7 @@ def writeGeojsonPolyg(node):
     polygcenter = (np.mean(polyg[0]),np.mean(polyg[1]));
     PolygonJS.write("    {\n");
     PolygonJS.write("      \"type\": \"Feature\",\n")
+    PolygonJS.write("      \"tippecanoe\": { \"maxzoom\" : %d, \"minzoom\" : %d },\n" % (32 if node.zoomview>26 else node.zoomview+5, 1 if node.zoomview < 3 else node.zoomview-2))
     PolygonJS.write("      \"properties\": {\n")
     for f in node.features:
         PolygonJS.write("        \"%s\":\"%s\",\n" % (f, cleanit(str(getattr(node, f)))))
@@ -179,7 +187,10 @@ CladeNameJS.write("{\n  \"type\": \"FeatureCollection\",\n  \"features\": [\n");
 RankNamesJS.write("{\n  \"type\": \"FeatureCollection\",\n  \"features\": [\n");
 PolygonJS.write("{\n  \"type\": \"FeatureCollection\",\n  \"features\": [\n");
 
-print("Tree traversal...")
+
+
+currsp = 0 ##count nb of species already visited
+
 for n in t.traverse():
     special = 0
     n.dist=1.0
@@ -230,6 +241,20 @@ for n in t.traverse():
     writeGeojsonPolyg(n)
     if n.is_root()==False:
         writeGeojsonLines(n)
+    if n.is_leaf():
+        ##progress...
+        currsp+=1
+        sys.stdout.write("Tree traversal... " + str(np.ceil(currsp/nbsp*100)) + "% \r")
+        sys.stdout.flush()
+        ##
+
+sys.stdout.write("Tree traversal... " + "DONE          " + "\n")
+sys.stdout.flush()
+
+sys.stdout.write("Closing output files... \r")
+sys.stdout.flush()
+sys.stdout.write("Closing output files... DONE\n")
+sys.stdout.flush()
 
 NodeTipJS.close()
 BranchJS.close()
@@ -242,6 +267,6 @@ TerminateFiles("CladesNames.json")
 TerminateFiles("RankNames.json")
 TerminateFiles("Polygons.json")
 
-print("Tree traversal... DONE")
+print("INFO: Lifemap requires at least %d zoom levels to visualize the whole tree.\n" % maxZoomView)
 
 ##we MAY need to add a branch before the root... 
